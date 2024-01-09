@@ -1,56 +1,44 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { program } from 'commander';
+import { processDirectory } from './npmrc-to-env.js';
+import {listModules, removeKey, replaceKey} from "./package-analyzer.js"; // Импортируйте функцию из модифицированного модуля
+import { compareDependencies } from './compare-dependencies.js';
+program
+    .command('parse-npmrc [directory]')
+    .description('Сбор данных из файлов .npmrc')
+    .action((directory) => {
+        processDirectory(directory).catch(console.error);
+    });
+program
+    .command('list-modules [path]')
+    .description('Показать список всех подпроектов и модулей из package.json')
+    .action((path) => {
+        listModules(path).catch(console.error);
+    });
 
-const processDirectory = async (directory = './') => {
-    try {
-        const filesAndDirectories = await fs.readdir(directory, { withFileTypes: true });
 
-        for (const dirent of filesAndDirectories) {
-            const fullPath = path.join(directory, dirent.name);
+program
+    .command('remove-key <pathToPackageJson> <key>')
+    .description('Удалить ключ из package.json')
+    .action((path, key) => {
+        removeKey(path, key).catch(console.error);
+    });
 
-            if (dirent.isDirectory()) {
-                await processDirectory(fullPath);
-            } else if (dirent.name === '.npmrc') {
-                await processNpmrcFile(fullPath);
-            }
-        }
-    } catch (error) {
-        console.error(error);
-    }
-};
+program
+    .command('replace-key <pathToPackageJson> <key> <newValue>')
+    .description('Заменить значение ключа в package.json')
+    .action((path, key, newValue) => {
+        replaceKey(path, key, newValue).catch(console.error);
+    });
 
-const processNpmrcFile = async (filePath) => {
-    try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        const envContent = await readEnvFile();
-        const lines = content.split('\n');
 
-        for (const line of lines) {
-            if (line && line.includes('=')) {
-                const [property, value] = line.split('=');
-                const envLine = `${property.trim()}=${value.trim()}`;
-                if (!envContent.includes(envLine)) {
-                    await fs.appendFile('.env', `${envLine}\n`);
-                }
-            }
-        }
-    } catch (error) {
-        console.error(error);
-    }
-};
+program
+    .command('compare-deps <rootDirectory>')
+    .description('Сканировать все package.json в папке и подпапках')
+    .action((rootDirectory) => {
+        compareDependencies(rootDirectory).catch(console.error);
+    });
 
-const readEnvFile = async () => {
-    try {
-        const content = await fs.readFile('.env', 'utf-8');
-        return content.split('\n');
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            await fs.writeFile('.env', '');
-            return [];
-        } else {
-            throw error;
-        }
-    }
-};
 
-processDirectory(process.argv[2]);
+program.parse(process.argv);
+
+
